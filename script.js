@@ -1,7 +1,18 @@
 (() => {
   "use strict";
 
-  const API_BASE = "https://mansik-santulan-score.onrender.com";
+  const API_BASE = (() => {
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      return window.location.port === "8000" ? window.location.origin : "http://127.0.0.1:8000";
+    }
+    if (window.location.protocol === "file:") {
+      return "http://127.0.0.1:8000";
+    }
+    if (window.location.origin && window.location.origin !== "null") {
+      return window.location.origin;
+    }
+    return "http://127.0.0.1:8000";
+  })();
 
   const form = document.getElementById("predict-form");
   const submitBtn = document.getElementById("submit-btn");
@@ -281,7 +292,7 @@
     } catch (err) {
       renderError(
         "Can't reach the server",
-        `Couldn't connect to ${API_BASE}. Make sure the backend is running (uvicorn main:app --port 2200 --reload) and reachable from this page.`
+        `Couldn't connect to ${API_BASE}. Make sure the backend is running (python main.py or uvicorn main:app --reload) and reachable from this page.`
       );
     } finally {
       setSubmitting(false);

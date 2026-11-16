@@ -1,30 +1,40 @@
+import os
 import joblib
 import pandas as pd
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
-from fastapi.middleware.cors import CORSMiddleware
 
-model = joblib.load('Mental_Health_Model.pkl')
-top_countries = ['Other','India','USA','Canada','Australia','UK','Germany','Mexico','Turkey','France']
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, 'Mental_Health_Model.pkl')
 
-app = FastAPI()
+model = joblib.load(MODEL_PATH)
+top_countries = ['Other', 'India', 'USA', 'Canada', 'Australia', 'UK', 'Germany', 'Mexico', 'Turkey', 'France']
+
+app = FastAPI(
+    title="Mental Health Score Predictor",
+    description="Student Social Media & Mental Health Impact Prediction API",
+    version="1.0.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-#A first Pydantic Model
+# Pydantic Model for Input Validation
 class StudentData(BaseModel):
     age                     : int = Field(..., ge=10, le=100)
     gender                  : Literal['Male', 'Female']
     country                 : str
     academic_level          : Literal['Undergraduate', 'Graduate', 'High School']
-    most_used_platform      : Literal['Facebook', 'LinkedIn', 'Instagram', 'Snapchat','Twitter','YouTube', 'TikTok', 'LINE', 'KakaoTalk', 'VKontakte', 'WhatsApp','WeChat']
+    most_used_platform      : Literal['Facebook', 'LinkedIn', 'Instagram', 'Snapchat', 'Twitter', 'YouTube', 'TikTok', 'LINE', 'KakaoTalk', 'VKontakte', 'WhatsApp', 'WeChat']
     purpose_of_use          : Literal['Networking', 'Education', 'Entertainment', 'News']
     avg_daily_usage_hours   : float = Field(..., ge=0, le=24)
     daily_unlocks           : int   = Field(..., ge=0)
@@ -34,41 +44,62 @@ class StudentData(BaseModel):
     stress_level            : Literal['Medium', 'Low', 'Very High', 'High']
 
 
-
-
-# Describe what we send back
+# Response Model
 class PredictionResponse(BaseModel):
-    predicted_mental_health_score:float
-    #6.777777 -> float
+    predicted_mental_health_score: float
 
 
-
-
+# Frontend static routes
 @app.get('/')
-def greet():
-    return {'Welcome to Sheryians AI School Guys'}
+def serve_index():
+    index_file = os.path.join(BASE_DIR, 'index.html')
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {"message": "Mental Health Score Predictor API is running"}
 
 
-@app.post('/predict', response_model=PredictionResponse) #6.77777
+@app.get('/style.css')
+def serve_css():
+    return FileResponse(os.path.join(BASE_DIR, 'style.css'))
+
+
+@app.get('/script.js')
+def serve_js():
+    return FileResponse(os.path.join(BASE_DIR, 'script.js'))
+
+
+@app.get('/health')
+def health_check():
+    return {
+        "status": "healthy",
+        "message": "Mental Health Score Predictor API is online"
+    }
+
+
+@app.post('/predict', response_model=PredictionResponse)
 def predict(data: StudentData):
-   
-   country_group = data.country if data.country in top_countries else "Other"
+    country_group = data.country if data.country in top_countries else "Other"
 
-   input_row = pd.DataFrame([{
-        'Age'                       :data.age,
-        'Gender'                    :data.gender,
-        'Country'                   :data.country,
-        'Academic_Level'            :data.academic_level,
-        'Most_Used_Platform'        :data.most_used_platform,
-        'Purpose_Of_Use'            :data.purpose_of_use,
-        'Avg_Daily_Usage_Hours'     :data.avg_daily_usage_hours,
-        'Daily_Unlocks'             :data.daily_unlocks,
-        'Study_Hours'               :data.study_hours,
-        'Physical_Activity_Hours'   :data.physical_activity_hours,
-        'Sleep_Hours_Per_Night'     :data.sleep_hours_per_night,
-        'Stress_Level'              :data.stress_level,
-        'Grouped_country'           :country_group
-   }])
+    input_row = pd.DataFrame([{
+        'Age'                       : data.age,
+        'Gender'                    : data.gender,
+        'Country'                   : data.country,
+        'Academic_Level'            : data.academic_level,
+        'Most_Used_Platform'        : data.most_used_platform,
+        'Purpose_Of_Use'            : data.purpose_of_use,
+        'Avg_Daily_Usage_Hours'     : data.avg_daily_usage_hours,
+        'Daily_Unlocks'             : data.daily_unlocks,
+        'Study_Hours'               : data.study_hours,
+        'Physical_Activity_Hours'   : data.physical_activity_hours,
+        'Sleep_Hours_Per_Night'     : data.sleep_hours_per_night,
+        'Stress_Level'              : data.stress_level,
+        'Grouped_country'           : country_group
+    }])
 
-   prediction = model.predict(input_row)[0] #6.77
-   return PredictionResponse(predicted_mental_health_score=round(float(prediction),2))
+    prediction = model.predict(input_row)[0]
+    return PredictionResponse(predicted_mental_health_score=round(float(prediction), 2))
+
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8000)
